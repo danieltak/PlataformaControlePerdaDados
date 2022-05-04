@@ -1,0 +1,806 @@
+/* CÓDIGO PRINCIPAL */
+
+
+
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "driverlib/debug.h"
+#include "driverlib/fpu.h"
+#include "driverlib/gpio.h"
+#include "driverlib/pin_map.h"
+#include "driverlib/rom.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/uart.h"
+#include "utils/uartstdio.h"
+#include "PWMWrapper.h"
+#include "buttons.h"
+#include "MotorSpeedInterrupt.h"
+
+int aux=0;
+int DutyCycle;
+extern int32_t g_Setpoint;
+extern int Time;
+//extern float PID;
+uint8_t Release, ButtonState;
+//*****************************************************************************
+//
+//! \addtogroup example_list
+//! <h1>Hello World (hello)</h1>
+//!
+//! A very simple ``hello world'' example.  It simply displays ``Hello World!''
+//! on the UART and is a starting point for more complicated applications.
+//!
+//! UART0, connected to the Virtual Serial Port and running at
+//! 115,200, 8-N-1, is used to display messages from this application.
+//
+//*****************************************************************************
+
+//*****************************************************************************
+//
+// The error routine that is called if the driver library encounters an error.
+//
+//*****************************************************************************
+#ifdef DEBUG
+void
+__error__(char *pcFilename, uint32_t ui32Line)
+{
+}
+#endif
+
+//*****************************************************************************
+//
+// Configure the UART and its pins.  This must be called before UARTprintf().
+//
+//*****************************************************************************
+void
+ConfigureUART(void)
+{
+    //
+    // Enable the GPIO Peripheral used by the UART.
+    //
+    ROM_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
+
+
+    //
+    // Enable UART0
+    //
+    ROM_SysCtlPeripheralEnable(SYSCTL_PERIPH_UART0);
+
+    //
+    // Configure GPIO Pins for UART mode.
+    //
+    ROM_GPIOPinConfigure(GPIO_PA0_U0RX);
+    ROM_GPIOPinConfigure(GPIO_PA1_U0TX);
+    ROM_GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
+
+
+    //ROM_GPIOPinConfigure(GPIO_PB0_U0RX);
+    //ROM_GPIOPinTypeUART(GPIO_PORTB_BASE, GPIO_PIN_0);
+    //
+    // Use the internal 16MHz oscillator as the UART clock source.
+    //
+    UARTClockSourceSet(UART0_BASE, UART_CLOCK_PIOSC);
+
+    //
+    // Initialize the UART for console I/O.
+    //
+    UARTStdioConfig(0, 115200, 16000000);
+}
+
+//*****************************************************************************
+//
+// Print "Hello World!" to the UART on the evaluation board.
+//
+//*****************************************************************************
+int
+main(void)
+{
+
+    //volatile uint32_t ui32Loop;
+
+    //
+    // Enable lazy stacking for interrupt handlers.  This allows floating-point
+    // instructions to be used within interrupt handlers, but at the expense of
+    // extra stack usage.
+    //
+    ROM_FPULazyStackingEnable();
+
+    //
+    // Set the clocking to run directly from the crystal.
+    //
+    ROM_SysCtlClockSet(SYSCTL_SYSDIV_4 | SYSCTL_USE_PLL | SYSCTL_XTAL_16MHZ |
+                       SYSCTL_OSC_MAIN);
+
+    //
+    // Enable the GPIO port that is used for the on-board LED.
+    //
+    ROM_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
+    ROM_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+
+    //
+    // Enable the GPIO pins for the LED (PF2 & PF3).
+    //
+    ROM_GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_1);
+    //ROM_GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_2);
+    //ROM_GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_3);
+    ROM_GPIOPinTypeGPIOOutput(GPIO_PORTB_BASE, GPIO_PIN_0);
+
+    //
+    // Initialize the UART.
+    //
+    ConfigureUART();
+
+    // inicia o PWM
+
+
+    //
+    // Hello!
+    //
+    UARTprintf("Hello, world!\n");
+    InitCaptureTimer(100000);
+    PWMInit(20000);
+    ButtonsInit();
+
+    //
+    // We are finished.  Hang around doing nothing.
+    //
+    while(1)
+    {
+        //
+        // Turn on the RED LED.
+        //
+        GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, 0xff);
+        GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_0, 0xff);
+
+        //
+        // Delay for a bit.
+        //
+        SysCtlDelay(SysCtlClockGet() / 1000);
+
+
+        GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, 0);
+        GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_0, 0);
+
+        SysCtlDelay(SysCtlClockGet() / 1000);
+
+
+        if(DutyCycle<0){
+           	DutyCycle=0;
+           }
+        if(DutyCycle>100){
+           	DutyCycle=100;
+        }
+        if(Time>200&&Time<202)
+        	{
+        			g_Setpoint=1900;
+        	}
+
+        if(Time>203&&Time<300)
+            {
+                	g_Setpoint=1800;
+            }
+
+        if(Time>301&&Time<366)
+            {
+                	g_Setpoint=2400;
+            }
+
+        if(Time>367&&Time<369)
+            {
+                	g_Setpoint=2300;
+            }
+        if(Time>370&&Time<372)
+           	{
+                    g_Setpoint=2200;
+            }
+        if(Time>373&&Time<375)
+            {
+                    g_Setpoint=2100;
+            }
+        if(Time>376&&Time<378)
+                    {
+                        	g_Setpoint=2000;
+                    }
+        if(Time>379&&Time<381)
+                    {
+                        	g_Setpoint=1900;
+                    }
+        if(Time>382&&Time<384)
+                    {
+                        	g_Setpoint=1800;
+                    }
+        if(Time>385&&Time<387)
+                    {
+                        	g_Setpoint=1700;
+                    }
+        if(Time>388&&Time<500)
+                    {
+                        	g_Setpoint=1600;
+                    }
+        if(Time>501)
+            {
+                	g_Setpoint=2000;
+            }
+
+
+
+
+        			ButtonState = ButtonsPoll(0,0);
+        			switch(ButtonState & ALL_BUTTONS)
+        			{
+        				case RIGHT_BUTTON:
+        				{
+        					if(Release)
+        					{
+
+        						Release = 0x0;
+        						g_Setpoint = g_Setpoint-100;
+        						aux=DutyCycle-1;
+        						UARTprintf("%d\n", g_Setpoint);
+
+        					}
+        					break;
+
+        					}
+
+
+        				case LEFT_BUTTON:
+        				{
+        					if(Release)
+        					{
+
+        						Release = 0x0;
+        						g_Setpoint = g_Setpoint+100;
+        						aux=DutyCycle+1;
+        						UARTprintf("%d\n", g_Setpoint);
+
+        					}
+
+        					break;
+        				}
+        				default:
+        				{
+        					Release = 0xFF;
+        				}
+        			}
+        			 //SetPWM(PID);
+        SysCtlDelay(SysCtlClockGet() / 1000 );
+
+        //
+        // Turn on the BLUE
+        //
+        //GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_2, 0xff);
+
+        //Delay for a bit.
+        //SysCtlDelay(SysCtlClockGet() / 80);
+
+
+        // Turn off the BLUE RED.
+        //
+        //GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, 0);
+
+        //
+        // Delay for a bit.
+        //
+        //SysCtlDelay(SysCtlClockGet() / 80);
+
+        // Turn on Green
+        //GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_3, 0xff);
+
+        // Delay for bit.
+        //SysCtlDelay(SysCtlClockGet() / 80);
+
+        // Turn off blue
+        //GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_2, 0);
+
+        // Delay for a bit.
+        //SysCtlDelay(SysCtlClockGet() / 80);
+
+        // Turn off green
+        //GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_2, 0);
+
+        // Delay for a bit.
+        //SysCtlDelay(SysCtlClockGet() / 80);
+
+        // Turn on all the leds
+        /*GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, 0xff);
+        GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_2, 0xff);
+        GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_3, 0xff);
+		*/
+        // Delay for reboot
+        //SysCtlDelay(SysCtlClockGet() / 80);
+
+        // Turn off all
+        /*GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, 0);
+        GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_2, 0);
+        GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_3, 0);
+
+        // Delay for reboot
+        SysCtlDelay(SysCtlClockGet() / 80);
+		*/
+
+    }
+}
+
+
+
+
+/* BUTTONS */
+
+#include <stdbool.h>
+#include <stdint.h>
+#include "inc/hw_types.h"
+#include "inc/hw_memmap.h"
+#include "inc/hw_gpio.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/rom.h"
+#include "driverlib/rom_map.h"
+#include "driverlib/pin_map.h"
+#include "driverlib/gpio.h"
+#include "buttons.h"
+
+//*****************************************************************************
+//
+//! \addtogroup buttons_api
+//! @{
+//
+//*****************************************************************************
+
+//*****************************************************************************
+//
+// Holds the current, debounced state of each button.  A 0 in a bit indicates
+// that that button is currently pressed, otherwise it is released.
+// We assume that we start with all the buttons released (though if one is
+// pressed when the application starts, this will be detected).
+//
+//*****************************************************************************
+static uint8_t g_ui8ButtonStates = ALL_BUTTONS;
+
+//*****************************************************************************
+//
+//! Polls the current state of the buttons and determines which have changed.
+//!
+//! \param pui8Delta points to a character that will be written to indicate
+//! which button states changed since the last time this function was called.
+//! This value is derived from the debounced state of the buttons.
+//! \param pui8RawState points to a location where the raw button state will
+//! be stored.
+//!
+//! This function should be called periodically by the application to poll the
+//! pushbuttons.  It determines both the current debounced state of the buttons
+//! and also which buttons have changed state since the last time the function
+//! was called.
+//!
+//! In order for button debouncing to work properly, this function should be
+//! caled at a regular interval, even if the state of the buttons is not needed
+//! that often.
+//!
+//! If button debouncing is not required, the the caller can pass a pointer
+//! for the \e pui8RawState parameter in order to get the raw state of the
+//! buttons.  The value returned in \e pui8RawState will be a bit mask where
+//! a 1 indicates the buttons is pressed.
+//!
+//! \return Returns the current debounced state of the buttons where a 1 in the
+//! button ID's position indicates that the button is pressed and a 0
+//! indicates that it is released.
+//
+//*****************************************************************************
+uint8_t
+ButtonsPoll(uint8_t *pui8Delta, uint8_t *pui8RawState)
+{
+    uint32_t ui32Delta;
+    uint32_t ui32Data;
+    static uint8_t ui8SwitchClockA = 0;
+    static uint8_t ui8SwitchClockB = 0;
+
+    //
+    // Read the raw state of the push buttons.  Save the raw state
+    // (inverting the bit sense) if the caller supplied storage for the
+    // raw value.
+    //
+    ui32Data = (ROM_GPIOPinRead(BUTTONS_GPIO_BASE, ALL_BUTTONS));
+    if(pui8RawState)
+    {
+        *pui8RawState = (uint8_t)~ui32Data;
+    }
+
+    //
+    // Determine the switches that are at a different state than the debounced
+    // state.
+    //
+    ui32Delta = ui32Data ^ g_ui8ButtonStates;
+
+    //
+    // Increment the clocks by one.
+    //
+    ui8SwitchClockA ^= ui8SwitchClockB;
+    ui8SwitchClockB = ~ui8SwitchClockB; 
+
+    //
+    // Reset the clocks corresponding to switches that have not changed state.
+    //
+    ui8SwitchClockA &= ui32Delta;
+    ui8SwitchClockB &= ui32Delta;
+
+    //
+    // Get the new debounced switch state.
+    //
+    g_ui8ButtonStates &= ui8SwitchClockA | ui8SwitchClockB;
+    g_ui8ButtonStates |= (~(ui8SwitchClockA | ui8SwitchClockB)) & ui32Data;
+
+    //
+    // Determine the switches that just changed debounced state.
+    //
+    ui32Delta ^= (ui8SwitchClockA | ui8SwitchClockB);
+
+    //
+    // Store the bit mask for the buttons that have changed for return to
+    // caller.
+    //
+    if(pui8Delta)
+    {
+        *pui8Delta = (uint8_t)ui32Delta;
+    }
+
+    //
+    // Return the debounced buttons states to the caller.  Invert the bit
+    // sense so that a '1' indicates the button is pressed, which is a
+    // sensible way to interpret the return value.
+    //
+    return(~g_ui8ButtonStates);
+}
+
+//*****************************************************************************
+//
+//! Initializes the GPIO pins used by the board pushbuttons.
+//!
+//! This function must be called during application initialization to
+//! configure the GPIO pins to which the pushbuttons are attached.  It enables
+//! the port used by the buttons and configures each button GPIO as an input
+//! with a weak pull-up.
+//!
+//! \return None.
+//
+//*****************************************************************************
+void
+ButtonsInit(void)
+{
+    //
+    // Enable the GPIO port to which the pushbuttons are connected.
+    //
+    ROM_SysCtlPeripheralEnable(BUTTONS_GPIO_PERIPH);
+
+    //
+    // Unlock PF0 so we can change it to a GPIO input
+    // Once we have enabled (unlocked) the commit register then re-lock it
+    // to prevent further changes.  PF0 is muxed with NMI thus a special case.
+    //
+    HWREG(BUTTONS_GPIO_BASE + GPIO_O_LOCK) = GPIO_LOCK_KEY;
+    HWREG(BUTTONS_GPIO_BASE + GPIO_O_CR) |= 0x01;
+    HWREG(BUTTONS_GPIO_BASE + GPIO_O_LOCK) = 0;
+
+    //
+    // Set each of the button GPIO pins as an input with a pull-up.
+    //
+    ROM_GPIODirModeSet(BUTTONS_GPIO_BASE, ALL_BUTTONS, GPIO_DIR_MODE_IN);
+    MAP_GPIOPadConfigSet(BUTTONS_GPIO_BASE, ALL_BUTTONS,
+                         GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+
+    //
+    // Initialize the debounced button state with the current state read from
+    // the GPIO bank.
+    //
+    g_ui8ButtonStates = ROM_GPIOPinRead(BUTTONS_GPIO_BASE, ALL_BUTTONS);
+}
+
+//*****************************************************************************
+//
+// Close the Doxygen group.
+//! @}
+//
+//*****************************************************************************
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* PWM */
+
+
+#include <stdbool.h>
+#include <stdint.h>
+#include "driverlib/rom.h"
+#include "driverlib/sysctl.h"
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "inc/hw_ints.h"
+#include "driverlib/pwm.h"
+#include "driverlib/pin_map.h"
+#include "driverlib/gpio.h"
+
+uint32_t gPWMFrequency = 0;
+
+//funcoes auxiliares
+
+/*
+ * Esta função implementa o drive da planta: Recebe um valor de esforço de controle e deve acionar o drive proporcionalmente
+ *
+ * */
+
+
+
+
+
+void SetPWM(int32_t DutyCycle)
+{
+float D, H;
+float T = PWMGenPeriodGet(PWM0_BASE, PWM_GEN_0);
+D = ((DutyCycle*T)/100);
+H = T-D;
+
+if(H<0){
+	H=1;
+}
+
+if(H>2500){
+H=2499;
+}
+//if(PID>100&&PID<0)
+
+PWMPulseWidthSet(PWM0_BASE, PWM_OUT_0, (int)H);
+}
+
+void PWMInit(uint32_t Frequency_Hz)
+{
+	float T;
+	//
+	// Enable the GPIO Peripheral used by PWM0
+	//
+	ROM_SysCtlPeripheralEnable (SYSCTL_PERIPH_GPIOB);
+
+	// Configure GPIO Pins for PWM0
+	//
+	ROM_GPIOPinConfigure (GPIO_PB6_M0PWM0);
+	ROM_GPIOPinTypePWM (GPIO_PORTB_BASE, GPIO_PIN_6);
+
+	//Habilita o PWM0
+	ROM_SysCtlPeripheralEnable (SYSCTL_PERIPH_PWM0);
+	//
+	// Configure the PWM generator for count down mode with immediate updates
+	// to the parameters.
+	//
+	PWMGenConfigure(PWM0_BASE, PWM_GEN_0,
+			PWM_GEN_MODE_DOWN | PWM_GEN_MODE_NO_SYNC | PWM_GEN_MODE_DBG_STOP);
+	//
+	// Set the period. For a 50 KHz frequency, the period = 1/50,000, or 20
+	// microseconds. For a 50 MHz clock, this translates to 1000 clock ticks.
+	// Use this value to set the period.
+	//
+	T = ((1.0/Frequency_Hz)/(1.0/SysCtlClockGet()));
+
+	PWMGenPeriodSet(PWM0_BASE, PWM_GEN_0, (int)T);
+	gPWMFrequency = Frequency_Hz;
+	//
+	// Set the pulse width of PWM0 for a 0% duty cycle.
+	//
+
+	PWMPulseWidthSet(PWM0_BASE, PWM_OUT_0, 0);
+	//
+	// Start the timers in generator 0.
+	//
+	PWMGenEnable(PWM0_BASE, PWM_GEN_0);
+	//
+	// Enable the outputs.
+	//
+	PWMOutputState(PWM0_BASE, (PWM_OUT_0_BIT), true);
+}
+
+
+
+
+/* MOTOR SPEED */
+
+#include <stdbool.h>
+#include <stdint.h>
+#include "utils/uartstdio.h"
+#include "driverlib/rom.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/timer.h"
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "inc/hw_ints.h"
+#include "inc/hw_timer.h"
+#include "driverlib/gpio.h"
+#include "driverlib/pin_map.h"
+extern int DutyCycle;
+int32_t g_Setpoint=2000;
+int32_t g_ek;
+float PID;
+//extern xQueueHandle g_pSampleQueue;
+int32_t gLastCaptureValue = 0;
+int32_t gTimeout = 0;
+int32_t abnormal = 0;
+int32_t counts = 0;
+int32_t MaxTickSize = 800000;
+int32_t gSpeedValue = 800000;
+int Time=0;
+void Timer1CaptureEvent()
+{
+	uint32_t IntStatus = TimerIntStatus(TIMER1_BASE,true);
+    uint32_t* TAR = (uint32_t*)(TIMER1_BASE + TIMER_O_TAR);
+	uint32_t CurrentValue = (0xFFFF)&(*TAR);
+	counts++;
+
+	if(IntStatus & TIMER_TIMB_TIMEOUT)
+	{
+		gTimeout+=gLastCaptureValue;
+		gLastCaptureValue = 0x10000;
+		if(gTimeout > MaxTickSize)
+		{
+			gSpeedValue = MaxTickSize;
+			gTimeout = 0;
+		}
+	}
+
+	if(IntStatus & TIMER_CAPA_EVENT)
+	{
+		gSpeedValue = gLastCaptureValue - CurrentValue + gTimeout;
+
+		gLastCaptureValue = CurrentValue;
+		gTimeout = 0;
+	}
+	//limpa todas as interrupções pendentes
+	TimerIntClear(TIMER1_BASE, IntStatus);
+}
+
+int32_t gOldRPM=0;
+float Proporcional=0, Integrador=0, PID=0, ek=0, ek1=0, uk1=0;
+void Timer2ControllerInterrupt()
+{	
+	// definindo a equação a diferenças
+		float Ts=0.1;
+		//float N=1;
+		float P=0.2;
+		//float D=0;
+		float I=1.0;
+
+
+	uint32_t IntStatus = TimerIntStatus(TIMER2_BASE,true);
+	TimerIntClear(TIMER2_BASE,IntStatus);
+	int32_t RPM = 0;
+    
+	//converte o valor da contagem de pulsos para RPM
+	RPM = ((60.0*(float)SysCtlClockGet())/(gSpeedValue*2.0));
+	
+	//Estas linhas são importantes devido a natureza da captura de dados
+	gOldRPM = RPM;
+	if(RPM > 10000)
+	{
+		RPM=gOldRPM;
+	}
+	if(RPM <= 300)
+	{
+		RPM=0;
+	}
+	Time++;
+
+	//Digite o controlador aqui	
+	ek = (g_Setpoint - RPM);
+	g_ek = ek;
+
+
+	Proporcional = ek*P;
+	//Derivativo = ek*D*N - ek1*D*N - uk1*(N*Ts-1);
+	Integrador = (((((ek*I*Ts)/2) + (ek1*I*Ts)/2)) + uk1);
+
+	if(Integrador>200)
+		{
+		Integrador = 200;
+		}
+
+	if(Integrador<-200)
+		{
+			Integrador = -200;
+		}
+
+	/*if((PID>100)&&(PID<0)){
+	Integrador = uk1;
+	}
+	*/
+	PID = Proporcional + Integrador;
+
+	ek1=ek;
+	ek=0;
+	uk1 = Integrador;
+
+	SetPWM((int)PID);
+
+	UARTprintf("%d %7d %4d %3d %3d %3d %3d\n " , (int)Time,  (int)RPM,  (int)DutyCycle,  (int)Proporcional,  (int)Integrador,  (int)ek,  (int)g_Setpoint);
+}
+
+uint32_t InitCaptureTimer(uint32_t SamplePeriod_uS)
+{
+	MaxTickSize = SysCtlClockGet()/10;
+	
+	//Configura a porta do sinal do sensor - PB4
+	//
+	ROM_SysCtlPeripheralEnable (SYSCTL_PERIPH_GPIOB);	
+	
+	// Configure GPIO Pins for Timer1 Capture
+	//
+	ROM_GPIOPinConfigure (GPIO_PB4_T1CCP0);
+	ROM_GPIOPinTypeTimer (GPIO_PORTB_BASE, GPIO_PIN_4);
+
+	//Habilita o periférico
+	ROM_SysCtlPeripheralEnable (SYSCTL_PERIPH_TIMER1);
+
+	TimerDisable(TIMER1_BASE,TIMER_BOTH);
+
+	//Configura o Timer1 A para contagem de tempo e o Timer1 B para contagem livre
+	TimerConfigure(TIMER1_BASE,TIMER_CFG_A_CAP_TIME | TIMER_CFG_B_PERIODIC );
+
+	//Configura o tipo de Evento no Timer1 - borda de subida no PB4
+	TimerControlEvent(TIMER1_BASE,TIMER_A,TIMER_EVENT_POS_EDGE);
+
+	//Configura o timer para continuar a contar quando o chip entra em modo de debug
+	TimerControlStall(TIMER1_BASE,TIMER_BOTH,true);
+
+	//Seta o prescaler do timer para 1
+	//TimerPrescaleSet(TIMER1_BASE,TIMER_A,16);
+
+	//Desabilita o trigger para o AD
+	TimerControlTrigger(TIMER1_BASE,TIMER_BOTH,false);
+
+	//registra a interrupção do timer
+	TimerIntRegister(TIMER1_BASE,TIMER_A,&Timer1CaptureEvent);
+	TimerIntRegister(TIMER1_BASE,TIMER_B,&Timer1CaptureEvent);
+
+	//limpa todas as interrupções pendentes
+	uint32_t IntStatus = TimerIntStatus(TIMER1_BASE,false);
+	TimerIntClear(TIMER1_BASE, IntStatus);
+
+	//Habilita a interrupção do timer
+	TimerIntEnable(TIMER1_BASE,TIMER_CAPA_EVENT | TIMER_TIMB_TIMEOUT);
+
+	//configura o registrador do timer para modo 16 bits (bug da biblioteca?)
+	uint32_t* TIMER1_CFG = (uint32_t*)(TIMER1_BASE + TIMER_O_CFG);
+	*TIMER1_CFG = 0x4;
+
+	TimerEnable(TIMER1_BASE,TIMER_BOTH);
+
+	//Habilita o periférico
+	ROM_SysCtlPeripheralEnable (SYSCTL_PERIPH_TIMER2);
+
+	//configura o TIMER2 para servir de Trigger para a thread do controlador
+	TimerConfigure(TIMER2_BASE, (TIMER_CFG_A_PERIODIC));
+	//
+	// Set the count time for the the periodic trigger timer (TimerA).
+	//
+	float Timer2Frequency = 1000000.0 / SamplePeriod_uS;
+	TimerLoadSet(TIMER2_BASE, TIMER_A, (int32_t) (SysCtlClockGet() / Timer2Frequency));
+
+	//registra a interrupção do timer
+	TimerIntRegister(TIMER2_BASE,TIMER_A,&Timer2ControllerInterrupt);
+
+
+	TimerIntEnable(TIMER2_BASE,0xFFFFFFFF);
+
+	TimerEnable(TIMER2_BASE,TIMER_A);
+
+	TimerSynchronize(TIMER1_BASE,TIMER_1A_SYNC | TIMER_1B_SYNC | TIMER_2A_SYNC);
+
+	return (0);
+}
+
+
